@@ -4,6 +4,8 @@
  * License: GPLv3. http://geekscape.org/static/arduino_license.html
  * Version: 0.0
  *
+ * Compile with a target of Arduino Uno.
+ *
  * Documentation
  * ~~~~~~~~~~~~~
  * Project:  http://arduinominiconf.org
@@ -43,8 +45,10 @@ void setup(void) {
   Events.addHandler(clockHandler,         1000);
   Events.addHandler(lcdHandler,           1000);  // Aim for 100 ms
   Events.addHandler(lightHandler,         1000);  // Aim for 250 ms
-  Events.addHandler(rgbLedFadeHandler,       1);  // Aim for < 1 ms
-  Events.addHandler(rotaryEncoderHandler,    1);  // Aim for < 1 ms
+  Events.addHandler(rgbLedFadeHandler,      10);  // Can run slower.
+  // Rotary encoder seems happier with 1ms polls, but that's expensive in 
+  // interrupts. 5 seems close enough for 'good enough' operation -- merlin
+  Events.addHandler(rotaryEncoderHandler,    5);
   Events.addHandler(serialHandler,          30);  // Sufficient for 38,400 baud
   Events.addHandler(temperatureHandler,   1000);  // Aim for 250 ms
   Events.addHandler(touchPanelHandler,     250);  // Aim for  50 ms

@@ -121,6 +121,19 @@ void lcdHandler(void) {
   lcdWriteString("Lux: ");
   lcdWriteNumber((int) lightValue);
   lcdWriteString("  ");
+
+  // Show which color the LED is slowly changing to.
+  char outputValChar[3];
+  lcdPosition(3, 0);
+  lcdWriteString("RGB1 R:");
+  sprintf(outputValChar, "%02X", (int) RGB1b[2]);
+  lcdWriteString(outputValChar);
+  lcdWriteString(" G:");
+  sprintf(outputValChar, "%02X", (int) RGB1b[1]);
+  lcdWriteString(outputValChar);
+  lcdWriteString(" B:");
+  sprintf(outputValChar, "%02X", (int) RGB1b[0]);
+  lcdWriteString(outputValChar);
 }
 
 void lcdWrite(

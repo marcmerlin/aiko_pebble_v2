@@ -47,6 +47,10 @@ const int PIN_LED_RED            =  9;  // Out: Red LED (PWM)
 const int PIN_LED_GREEN          = 10;  // Out: Red LED (PWM)
 const int PIN_LED_BLUE           = 11;  // Out: Red LED (PWM)
 
+extern float RGB1b[3];
+extern uint8_t RGB1_delay_factor;
+
+
 // Open-collector (transistor switch) outputs with LED
 // Standard Arduino "blink" example sketch will flash red LED 2
 const int PIN_OUTPUT_1           = 12;  // Out: Output transistor and LED 1

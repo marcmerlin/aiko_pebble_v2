@@ -42,6 +42,9 @@ void rotaryEncoderHandler(void) {
     rotaryEncoderValue += delta;
 
     analogWrite(PIN_LCD_BACKLIGHT, rotaryEncoderValue);
+    // Affect how many 10's of ms to wait between each color change step on
+    // RGB LED.
+    RGB1_delay_factor = rotaryEncoderValue / 10;
 
 //  Serial.print("Rotary encoder: ");
 //  Serial.println(rotaryEncoderValue);
