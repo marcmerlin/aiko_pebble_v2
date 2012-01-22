@@ -33,7 +33,7 @@ float RGB1a[3] =        { 50, 50, 50 };
 float RGB1b[3];
 // What to add to RGB1a to get to RGB1b in 64 steps
 float RGB1diff[3];
-int   RGB1pins[3] =     { RGB1_BLUE, RGB1_GREEN, RGB1_RED };
+uint8_t RGB1pins[3] =     { RGB1_BLUE, RGB1_GREEN, RGB1_RED };
 
 
 // Show how quickly the color steps are changed.
@@ -45,12 +45,12 @@ uint8_t rgb1_color_color_state = 0;
 
 
 void rgbLedFadeInitialize(void) {
-    pinMode(PIN_LED_RED,   OUTPUT);
-    pinMode(PIN_LED_GREEN, OUTPUT);
-    pinMode(PIN_LED_BLUE,  OUTPUT);
+    pinMode(RGB1_BLUE,   OUTPUT);
+    pinMode(RGB1_GREEN, OUTPUT);
+    pinMode(RGB1_RED,  OUTPUT);
 
-    pinMode(PIN_OUTPUT_1,  OUTPUT);
-    pinMode(PIN_OUTPUT_2,  OUTPUT);
+    pinMode(RGB1_COLOR_STEP_STATUS,  OUTPUT);
+    pinMode(RGB1_NEW_COLOR_STATUS,  OUTPUT);
 
     randomSeed(analogRead(PIN_ANALOG_LIGHT));
 

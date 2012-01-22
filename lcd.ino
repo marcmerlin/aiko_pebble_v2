@@ -12,6 +12,9 @@
  * LCD KS0066 4-bit data interface, 3 Arduino pins and MC14094 8-bit register
  * http://www.datasheetsite.com/datasheet/KS0066
  *
+ * MC14094 is compatible with HEF4094 as shown in 
+ * http://www.arduino.cc/playground/Code/LCD3wires
+ *
  * MC14094 input:  Arduino digital pin 2=Clock, pin 3=Data, pin 4=Strobe
  * MC14094 output: Q8=DB4, Q7=DB5, Q6=DB6, Q5=DB7, Q4=E, Q3=RW, Q2=RS, Q1=None
  * http://www.ee.mut.ac.th/datasheet/MC14094.pdf
