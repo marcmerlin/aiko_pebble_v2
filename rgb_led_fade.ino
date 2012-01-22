@@ -19,10 +19,6 @@ byte rgbLedFadeInitialized = false;
 // How far we are in each light pattern.
 uint8_t RGB1_led_stage = 0;
 
-// How many times we get into the handler before we actually run its content
-// (allows delaying the color change loop from external input like the 
-// the rotary switch).
-uint8_t RGB1_delay_factor = 10;
 // How many times we entered the loop.
 uint8_t RGB1_loop_count = 0;
 
@@ -58,26 +54,26 @@ void rgbLedFadeInitialize(void) {
     analogWrite(RGB1_GREEN, RGB1_HIGH);
     analogWrite(RGB1_RED, RGB1_HIGH);
     analogWrite(RGB1_BLUE, RGB1_HIGH);
-    delay(1000);
+    delay(100);
 
     // Blue
     analogWrite(RGB1_GREEN, RGB1_LOW);
     analogWrite(RGB1_RED, RGB1_LOW);
-    delay(1000);
+    delay(100);
 
     // Green
     analogWrite(RGB1_GREEN, RGB1_HIGH);
     analogWrite(RGB1_BLUE, RGB1_LOW);
-    delay(1000);
+    delay(100);
 
     // Red
     analogWrite(RGB1_RED, RGB1_HIGH);
     analogWrite(RGB1_GREEN, RGB1_LOW);
-    delay(1000);
+    delay(100);
 
     // Off
     analogWrite(RGB1_RED, RGB1_LOW);
-    delay(1000);
+    delay(100);
 
     rgbLedFadeInitialized = true;
 }

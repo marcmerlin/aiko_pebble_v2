@@ -53,15 +53,19 @@ void touchPanelHandler(void) {
   // yLow has analog port -14 !!
   int y = analogRead(xLowAnalog);
 
-  lcd.setCursor(13, 3);
+  // Only display on the right if popup menu is not active.
+  if (not in_menu)
+  {
+    lcd.setCursor(13, 3);
 
-  if  (x > 99  &&  y > 99) {
-    lcd.print(x);
-    lcd.print(",");
-    lcd.print(y);
-  }
-  else {
-    lcd.print("       ");
+    if  (x > 99  &&  y > 99) {
+      lcd.print(x);
+      lcd.print(",");
+      lcd.print(y);
+    }
+    else {
+      lcd.print("       ");
+    }
   }
 }
 

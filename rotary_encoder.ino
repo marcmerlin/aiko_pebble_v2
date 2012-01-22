@@ -9,9 +9,9 @@
  * rotation on the pebble v2.
  * Brett Downing 2012
  * 
- * One thing you'll notice about the pebble board is the enormous number of encoder
- * errrors it generates even though position measurement is rock solid. (it returns
- * to zero at the same angle) The reason for this is contact bounce.
+ * One thing you'll notice about the pebble board is the enormous number of
+ * encoder errrors it generates even though position measurement is rock solid.
+ * (it returns to zero at the same angle) The reason for this is contact bounce.
  * This sketch, run on high quality optical encoder modules ($30 from sparkfun)
  * results in almost zero errors.
  * 
@@ -33,17 +33,18 @@
 #define ENCODER_B_MASK (1<<PIN_ROTARY_B)
 #define ENCODERS_MASK (ENCODER_B_MASK | ENCODER_A_MASK)
 
+// FIXME: create a new interrupt for PIN_ROTARY_PUSH
+
 uint8_t inputStates = 0x00;  // the states read immediately at interrupt
 uint8_t changeFlags = 0x00;  // XOR of the old and new states
 uint8_t oldInputStates = 0x00;  // the states at last interrupt
 boolean encoderStateChange = false;  // to tell the loop something happened
 
-int16_t encoderErrors = 0;  // when two pins change at once (undefined direction)
-int8_t  encoderValue = 0;   // -1 or +1
+int16_t encoderErrors = 0;  // when 2 pins change at once (undefined direction)
+boolean button_status, old_button_status = 1;
+
 
 boolean rotaryEncoderInitialized = false;
-
-int16_t rotaryEncoderValue = DEFAULT_LCD_BACKLIGHT;
 
 /* For interrupts info, read
  * http://forums.trossenrobotics.com/tutorials/how-to-diy-128/an-introduction-to-interrupts-3248/
@@ -80,9 +81,9 @@ ISR(PCINT2_vect) {
           difficult to read line. */
 	  if (( ( (inputStates >> 1) ^ inputStates ^ changeFlags) & 
 		ENCODER_A_MASK) != 0x00) {
-	      encoderValue = -1;
+	      rotary_button_change = -1;
 	  } else {
-	      encoderValue = 1;
+	      rotary_button_change = 1;
 	  }
 	}
     }
@@ -110,29 +111,34 @@ void rotaryEncoderInitialize(void) {
     rotaryEncoderInitialized = true;
 }
 
-const int ROTARY_ENCODER_FACTOR = 5;
+#define BUTTON_PUSHED 0
+#define BUTTON_NOTPUSHED 1
 
 void rotaryEncoderHandler(void) {
+    static char clickchar = char(0);
     if (! rotaryEncoderInitialized) rotaryEncoderInitialize();
 
-    if (encoderStateChange != true) return;
-    encoderStateChange = false;    
+    // FIXME: this needs to be replaced by a proper interrupt, if someone 
+    // clicks less time than this handler is called at, the click will be missed
+    button_status = digitalRead(PIN_ROTARY_PUSH);
+    if (button_status == BUTTON_NOTPUSHED && old_button_status == BUTTON_PUSHED)
+    {
+	button_clicked = true;
+	lcd.setCursor(1, 0);
+	lcd.print(clickchar);
+	clickchar = (clickchar + 1) % 5;
+    }
+    old_button_status = button_status;
 
-    Serial.print("Encoder Position: ");
-    Serial.println(encoderValue);
-    Serial.print("Encoder Errors: ");
-    Serial.println(encoderErrors);
+    if (encoderStateChange == true)
+    {
+	encoderStateChange = false;    
 
-    // we receive 2 clicks at a time. If click resolution is needed, you 
-    // want to divide the result by 2.
-    rotaryEncoderValue = constrain(rotaryEncoderValue + 
-				      encoderValue * ROTARY_ENCODER_FACTOR, 
-				      0 , 255);
-
-    analogWrite(PIN_LCD_BACKLIGHT, rotaryEncoderValue);
-    // Affect how many 10's of ms to wait between each color change step on
-    // RGB LED.
-    RGB1_delay_factor = rotaryEncoderValue / 10;
+	Serial.print("Encoder Position: ");
+	Serial.println(rotary_button_change);
+	Serial.print("Encoder Errors: ");
+	Serial.println(encoderErrors);
+    }
 }
 
 

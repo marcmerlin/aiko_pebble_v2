@@ -5,172 +5,263 @@
  * ----------------------------------------------------------------------------
  *
  * By Marc MERLIN <marc_soft@merlins.org>, using the SR_LCD3 instantiation
- * of LiquidCrystal from
+ * I wrote of LiquidCrystal from
  * https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
  */
 
 #include <LiquidCrystal_SR_LCD3.h>
 
-byte lcdInitialized = false;
 LiquidCrystal_SR_LCD3 lcd(PIN_LCD_DATA, PIN_LCD_CLOCK, PIN_LCD_STROBE);
 
+// Create a set of new characters
+// FIXME, use PROGMEM
+byte heart[8] = {
+  0b00000, 0b01010, 0b11111, 0b11111, 0b11111, 0b01110, 0b00100, 0b00000
+};
+
+byte smiley[8] = {
+  0b00000, 0b00000, 0b01010, 0b00000, 0b00000, 0b10001, 0b01110, 0b00000
+};
+
+byte frownie[8] = {
+  0b00000, 0b00000, 0b01010, 0b00000, 0b00000, 0b00000, 0b01110, 0b10001
+};
+
+byte armsDown[8] = {
+  0b00100, 0b01010, 0b00100, 0b00100, 0b01110, 0b10101, 0b00100, 0b01010
+};
+
+byte armsUp[8] = {
+  0b00100, 0b01010, 0b00100, 0b10101, 0b01110, 0b00100, 0b00100, 0b01010
+};
+
+// FIXME, change to PROGMEM
+const char menuline[] = { 255, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 0 };
+const char hidemenuline[] = { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0 };
+const char nomenuline[] = "          ";
+uint8_t menu_printed = 0;
+uint8_t sub_menu_selected = 1;
+
 void lcdInitialize(void) {
-  pinMode(PIN_LCD_BACKLIGHT, OUTPUT);
-  analogWrite(PIN_LCD_BACKLIGHT, DEFAULT_LCD_BACKLIGHT);
+    pinMode(PIN_LCD_BACKLIGHT, OUTPUT);
+    analogWrite(PIN_LCD_BACKLIGHT, lcd_backlight);
 
-  lcd.begin(20, 4);              // initialize the lcd 
-  lcd.home ();                   // go home
+    // load characters to the LCD
+    lcd.createChar(0, heart);
+    lcd.createChar(1, smiley);
+    lcd.createChar(2, frownie);
+    lcd.createChar(3, armsDown);  
+    lcd.createChar(4, armsUp);  
 
-  lcdInitialized = true;
+    lcd.begin(20, 4);              // initialize the lcd 
+    lcd.clear();
+    lcd.print(F("I"));
+    lcd.print(char(0));
+    lcd.print(F("Pebblev2"));
 }
 
 void lcdHandler(void) {
-  if (! lcdInitialized) {
-    lcdInitialize();
-    lcd.clear();
-    lcd.print(F("Pebble v2"));
-  }
+    lcd.setCursor(0, 1);
+    lcd.print("T:");
+    lcd.print((int) temperatureWhole);
+    lcd.print(".");
+    if (temperatureFraction < 10) lcd.print("0");
+    lcd.print((int) temperatureFraction);
+    lcd.print(char(0xDF));
+    lcd.print("C ");
 
-  lcd.setCursor(12, 0);
-  if (hour < 10) lcd.print("0");
-  lcd.print((int) hour);
-  lcd.print(":");
-  if (minute < 10) lcd.print("0");
-  lcd.print((int) minute);
-  lcd.print(":");
-  if (second < 10) lcd.print("0");
-  lcd.print((int) second);
+    lcd.setCursor(0, 2);
+    lcd.print("Lux: ");
+    lcd.print((int) lightValue);
+    lcd.print("  ");
 
-  lcd.setCursor(0, 1);
-  if (digitalRead(PIN_ROTARY_PUSH)) {
-    lcd.print("knob:  ");
-  }
-  else {
-    lcd.print("KNOB:  ");
-  }
-  lcd.print((int) rotaryEncoderValue);
-  lcd.print("  ");
+    // Show which color the LED is slowly changing to.
+    char outputValChar[3];
+    lcd.setCursor(0, 3);
+    lcd.print(F("RGB#"));
+    sprintf(outputValChar, "%02X", (int) RGB1b[2]);
+    lcd.print(outputValChar);
+    sprintf(outputValChar, "%02X", (int) RGB1b[1]);
+    lcd.print(outputValChar);
+    sprintf(outputValChar, "%02X", (int) RGB1b[0]);
+    lcd.print(outputValChar);
 
-  lcd.setCursor(13, 1);
-  lcd.print((int) temperatureWhole);
-  lcd.print(".");
-  if (temperatureFraction < 10) lcd.print("0");
-  lcd.print((int) temperatureFraction);
-  lcd.print(" C  ");
+    if (not in_menu)
+    {
+	if (button_clicked)
+	{
 
-  lcd.setCursor(0, 2);
-  lcd.print("Lux: ");
-  lcd.print((int) lightValue);
-  lcd.print("  ");
-
-  // Show which color the LED is slowly changing to.
-  char outputValChar[3];
-  lcd.setCursor(0, 3);
-  lcd.print(F("RGB#"));
-  sprintf(outputValChar, "%02X", (int) RGB1b[2]);
-  lcd.print(outputValChar);
-  sprintf(outputValChar, "%02X", (int) RGB1b[1]);
-  lcd.print(outputValChar);
-  sprintf(outputValChar, "%02X", (int) RGB1b[0]);
-  lcd.print(outputValChar);
-}
-
-#if 0
-void lcdWrite(
-  byte value,
-  byte dataFlag) {
-
-  digitalWrite(PIN_LCD_STROBE, LOW);
-
-  byte output = value >> 4;                        // Most Significant Nibble
-
-  if (dataFlag) {
-    output = (output | LCD_RS_HIGH) & LCD_RW_LOW;  // Command or Data ?
-  }
-
-  for (byte loop1 = 0; loop1 < 2; loop1 ++) {   // First MSN, then LSN
-    for (byte loop2 = 0; loop2 < 3; loop2 ++) { // LCD ENABLE LOW -> HIGH -> LOW
-      output = (loop2 == 1) ?
-       (output | LCD_ENABLE_HIGH) : (output & LCD_ENABLE_LOW);
-
-      shiftOut(PIN_LCD_DATA, PIN_LCD_CLOCK, LSBFIRST, output);
-      digitalWrite(PIN_LCD_STROBE, HIGH);
-      delayMicroseconds(10);
-      digitalWrite(PIN_LCD_STROBE,LOW);
+	    menu_printed = 1;
+	    for (uint8_t l = 0; l < 4; l++)
+	    {
+		lcd.setCursor(10, l);
+		lcd.print(menuline);
+		in_menu = true;
+	    }
+	    lcd.setCursor(12, 0);
+	    lcd.print("Change");
+	    lcd.setCursor(11, 1);
+	    lcd.print("Backlight");
+	    lcd.setCursor(11, 2);
+	    lcd.print("LED Delay");
+	    lcd.setCursor(13, 3);
+	    lcd.print("Exit");
+	    lcd.setCursor(11, 1);
+	    lcd.blink();
+	}
+	else
+	{
+	    lcd.setCursor(12, 0);
+	    if (hour < 10) lcd.print("0");
+	    lcd.print((int) hour);
+	    lcd.print(":");
+	    if (minute < 10) lcd.print("0");
+	    lcd.print((int) minute);
+	    lcd.print(":");
+	    if (second < 10) lcd.print("0");
+	    lcd.print((int) second);
+	}
     }
-delay(1);
-    output = value & 0x0F;                           // Least Significant Nibble
+    else
+    {
+	switch(menu_printed)
+	{
+	case 1:
+	    switch(sub_menu_selected)
+	    {
+	    case 1:
+		if (rotary_button_change == -1)
+		{
+		    sub_menu_selected = 3;
+		    lcd.setCursor(13, 3);
+		}
+		if (rotary_button_change == 1)
+		{
+		    sub_menu_selected = 2;
+		    lcd.setCursor(11, 2);
+		}
+		if (button_clicked)
+		{
+		    for (uint8_t l = 2; l < 4; l++)
+		    {
+			lcd.setCursor(10, l);
+			lcd.print(menuline);
+		    }
+		    menu_printed = 2;
+		    lcd.setCursor(14, 2);
+		    lcd.print(lcd_backlight);
+		}
+		break; 
 
-    if (dataFlag) {
-      output = (output | LCD_RS_HIGH) & LCD_RW_LOW;  // Command or Data ?
+	    case 2:
+		if (rotary_button_change == -1)
+		{
+		    sub_menu_selected = 1;
+		    lcd.setCursor(11, 1);
+		}
+		if (rotary_button_change == 1)
+		{
+		    sub_menu_selected = 3;
+		    lcd.setCursor(13, 3);
+		}
+		if (button_clicked)
+		{
+		    for (uint8_t l = 2; l < 4; l++)
+		    {
+			lcd.setCursor(10, l);
+			lcd.print(menuline);
+		    }
+		    lcd.setCursor(11, 1);
+		    lcd.print("LED Delay");
+		    menu_printed = 3;
+		    lcd.setCursor(15, 2);
+		    lcd.print(RGB1_delay_factor);
+		}
+		break; 
+
+	    case 3:
+		if (rotary_button_change == -1)
+		{
+		    sub_menu_selected = 2;
+		    lcd.setCursor(11, 2);
+		}
+		if (rotary_button_change == 1)
+		{
+		    sub_menu_selected = 1;
+		    lcd.setCursor(11, 1);
+		}
+		if (button_clicked)
+		{
+		    for (uint8_t l = 0; l < 4; l++)
+		    {
+			lcd.setCursor(10, l);
+			lcd.print(nomenuline);
+			in_menu = false;
+			lcd.noBlink();
+		    }
+		}
+		break; 
+	    }
+	    break;
+
+	case 2:
+	    if (button_clicked)
+	    {
+		for (uint8_t l = 0; l < 4; l++)
+		{
+		    lcd.setCursor(10, l);
+		    lcd.print(nomenuline);
+		    in_menu = false;
+		    lcd.noBlink();
+		}
+	    }
+	    if (rotary_button_change)
+	    {
+		if (rotary_button_change == -1)
+		{
+		    lcd_backlight = constrain(lcd_backlight - 10, 0, 255);
+		}
+		if (rotary_button_change == 1)
+		{
+		    lcd_backlight = constrain(lcd_backlight + 10, 0, 255);
+		}
+		lcd.setCursor(14, 2);
+		lcd.print(lcd_backlight);
+		lcd.print("  ");
+		analogWrite(PIN_LCD_BACKLIGHT, lcd_backlight);
+		lcd.setCursor(14, 2);
+	    }
+	    break; 
+
+	case 3:
+	    if (button_clicked)
+	    {
+		for (uint8_t l = 0; l < 4; l++)
+		{
+		    lcd.setCursor(10, l);
+		    lcd.print(nomenuline);
+		    in_menu = false;
+		    lcd.noBlink();
+		}
+	    }
+	    if (rotary_button_change)
+	    {
+		if (rotary_button_change == -1)
+		{
+		    RGB1_delay_factor = constrain(RGB1_delay_factor - 3, 0, 255);
+		}
+		if (rotary_button_change == 1)
+		{
+		    RGB1_delay_factor = constrain(RGB1_delay_factor + 3, 0, 255);
+		}
+		lcd.setCursor(15, 2);
+		lcd.print(RGB1_delay_factor);
+		lcd.print("  ");
+	    }
+	    break; 
+	}
     }
-  }
+    rotary_button_change = 0;
+    button_clicked = false;
 }
 
-void lcdClear(void) {
-  lcdWrite(LCD_COMMAND_CLEAR, false);
-  delay(2);
-}
-
-void lcdPosition(
-  byte row,        // Must be either 0 (first row), 1, 2 or 3 (last row)
-  byte column) {   // Must be between 0 and 19
-
-  if (row > 1) column += 20;
-  row = (row & 1)  ?  LCD_ODD_ROW_OFFSET  :  0;
-
-  lcdWrite(LCD_COMMAND_SET_DDRAM_ADDRESS | row | column, false);
-  delayMicroseconds(40);
-}
-
-void lcdWriteString(
-  char message[]) {
-
-  while (*message) lcdWrite((*message ++), true);
-}
-
-int estimateDigits(int nr) {
-  int dec = 10;
-  int temp = 1;
-  int div = nr/dec;
-  while (div > 0) {
-    dec *= 10;
-    div = nr/dec;
-    temp++;
-  }
-  return temp;
-}
-
-int pow(int base, int expo) {
-  int temp = 1;
-  for (int c = 1; c <= expo; c++) {
-    temp *= base;
-  }
-  return temp;
-}
-
-void lcdWriteNumber(int nr, int digits) {
-  for (int i = digits-1; i >= 0; i--) {
-    int dec = pow(10,i);
-    int div = nr/dec;
-    lcdWrite(div+48, true);
-    if (div > 0) {
-      nr -= div*dec;
-    }
-  }
-}
-
-void lcdWriteNumber(int nr) {
-  int value = nr;
-
-  if (value < 0) {
-    lcdWrite('-', true);
-    value = - nr;
-  }
-
-  int digits = estimateDigits(value);
-  lcdWriteNumber(value, digits);
-}
-#endif
-
-/* ------------------------------------------------------------------------- */
