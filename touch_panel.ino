@@ -24,6 +24,7 @@
 #define yHigh      (4 + ANALOG_OFFSET)
 
 void touchPanelHandler(void) {
+  return;
   pinMode(xLow,OUTPUT);
   pinMode(xHigh,OUTPUT);
   digitalWrite(xLow,LOW);
@@ -52,15 +53,15 @@ void touchPanelHandler(void) {
   // yLow has analog port -14 !!
   int y = analogRead(xLowAnalog);
 
-  lcdPosition(2, 13);
+  lcd.setCursor(13, 3);
 
   if  (x > 99  &&  y > 99) {
-    lcdWriteNumber(x);
-    lcdWriteString(",");
-    lcdWriteNumber(y);
+    lcd.print(x);
+    lcd.print(",");
+    lcd.print(y);
   }
   else {
-    lcdWriteString("       ");
+    lcd.print("       ");
   }
 }
 

@@ -4,84 +4,22 @@
  * License: GPLv3. http://geekscape.org/static/arduino_license.html
  * ----------------------------------------------------------------------------
  *
- * To Do
- * ~~~~~
- * - None, yet.
- *
- * ---------------------------------------------------------------------------- 
- * LCD KS0066 4-bit data interface, 3 Arduino pins and MC14094 8-bit register
- * http://www.datasheetsite.com/datasheet/KS0066
- *
- * MC14094 is compatible with HEF4094 as shown in 
- * http://www.arduino.cc/playground/Code/LCD3wires
- *
- * MC14094 input:  Arduino digital pin 2=Clock, pin 3=Data, pin 4=Strobe
- * MC14094 output: Q8=DB4, Q7=DB5, Q6=DB6, Q5=DB7, Q4=E, Q3=RW, Q2=RS, Q1=None
- * http://www.ee.mut.ac.th/datasheet/MC14094.pdf
- *
- *   +--------------------------------------------+
- *   |    Arduino (ATMega 168 or 328)             |
- *   |    D02           D03           D04         |
- *   +----+-------------+-------------+-----------+
- *        |4            |5            |6
- *        |1            |2            |3
- *   +----+-------------+-------------+-----------+
- *   |    Strobe        Data          Clock       |
- *   |    MC14094 8-bit shift/latch register      |
- *   |    Q8   Q7   Q6   Q5   Q4   Q3   Q2   Q1   |
- *   +----+----+----+----+----+----+----+----+----+
- *        |11  |12  |13  |14  |7   |6   |5   |4
- *        |11  |12  |13  |14  |6   |5   |4
- *   +----+----+----+----+----+----+----+---------+
- *   |    DB4  DB5  DB6  DB7  E    RW   RS        |
- *   |               LCD KS0066                   |
- *   +--------------------------------------------+
+ * By Marc MERLIN <marc_soft@merlins.org>, using the SR_LCD3 instantiation
+ * of LiquidCrystal from
+ * https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
  */
 
-// LCD pin bit-patterns, output from MC14094 -> LCD KS0066 input
-#define LCD_ENABLE_HIGH 0x10  // MC14094 Q4 -> LCD E
-#define LCD_ENABLE_LOW  0xEF  //   Enable (high) / Disable (low)
-#define LCD_RW_HIGH     0x20  // MC14094 Q3 -> LCD RW
-#define LCD_RW_LOW      0xDF  //   Read (high) / Write (low)
-#define LCD_RS_HIGH     0x40  // MC14094 Q2 -> LCD RS
-#define LCD_RS_LOW      0xBF  //   Data (high) / Instruction (low) Select
-
-// LCD Commands
-#define LCD_COMMAND_CLEAR             0x01  // Clear display
-#define LCD_COMMAND_HOME              0x02  // Set DD RAM address counter to (0, 0)
-#define LCD_COMMAND_ENTRY_SET         0x06  // Entry mode set
-#define LCD_COMMAND_DISPLAY_SET       0x0C  // Display on/off control
-#define LCD_COMMAND_FUNCTION_SET      0x28  // Function set
-#define LCD_COMMAND_SET_DDRAM_ADDRESS 0x80  // Set DD RAM address counter (row, column)
-
-#define LCD_ODD_ROW_OFFSET  0x40  // For first and third row
-
-byte lcdSetup[] = {         // LCD command, delay time in milliseconds
-  LCD_COMMAND_HOME,         50,  // wait for LCD controller to be initialized
-  LCD_COMMAND_HOME,         50,  // ditto
-  LCD_COMMAND_FUNCTION_SET,  1,  // 4-bit interface, 2 display lines, 5x8 font
-  LCD_COMMAND_DISPLAY_SET,   1,  // turn display on, cursor off, blinking off
-  LCD_COMMAND_CLEAR,         2,  // clear display
-  LCD_COMMAND_ENTRY_SET,     1   // increment mode, display shift off
-};
+#include <LiquidCrystal_SR_LCD3.h>
 
 byte lcdInitialized = false;
+LiquidCrystal_SR_LCD3 lcd(PIN_LCD_DATA, PIN_LCD_CLOCK, PIN_LCD_STROBE);
 
 void lcdInitialize(void) {
-  pinMode(PIN_LCD_STROBE,    OUTPUT);
-  pinMode(PIN_LCD_DATA,      OUTPUT);
-  pinMode(PIN_LCD_CLOCK,     OUTPUT);
   pinMode(PIN_LCD_BACKLIGHT, OUTPUT);
-
   analogWrite(PIN_LCD_BACKLIGHT, DEFAULT_LCD_BACKLIGHT);
 
-  byte length = sizeof(lcdSetup) / sizeof(*lcdSetup);
-  byte index = 0;
-
-  while (index < length) {
-    lcdWrite(lcdSetup[index ++], false);
-    delay(lcdSetup[index ++]);
-  }
+  lcd.begin(20, 4);              // initialize the lcd 
+  lcd.home ();                   // go home
 
   lcdInitialized = true;
 }
@@ -89,56 +27,55 @@ void lcdInitialize(void) {
 void lcdHandler(void) {
   if (! lcdInitialized) {
     lcdInitialize();
-    lcdClear();
-    lcdWriteString("Pebble v2");
+    lcd.clear();
+    lcd.print(F("Pebble v2"));
   }
 
-  lcdPosition(0, 12);
-  if (hour < 10) lcdWriteString("0");
-  lcdWriteNumber((int) hour);
-  lcdWriteString(":");
-  if (minute < 10) lcdWriteString("0");
-  lcdWriteNumber((int) minute);
-  lcdWriteString(":");
-  if (second < 10) lcdWriteString("0");
-  lcdWriteNumber((int) second);
+  lcd.setCursor(12, 0);
+  if (hour < 10) lcd.print("0");
+  lcd.print((int) hour);
+  lcd.print(":");
+  if (minute < 10) lcd.print("0");
+  lcd.print((int) minute);
+  lcd.print(":");
+  if (second < 10) lcd.print("0");
+  lcd.print((int) second);
 
-  lcdPosition(1, 0);
+  lcd.setCursor(0, 1);
   if (digitalRead(PIN_ROTARY_PUSH)) {
-    lcdWriteString("knob:  ");
+    lcd.print("knob:  ");
   }
   else {
-    lcdWriteString("KNOB:  ");
+    lcd.print("KNOB:  ");
   }
-  lcdWriteNumber((int) rotaryEncoderValue);
-  lcdWriteString("  ");
+  lcd.print((int) rotaryEncoderValue);
+  lcd.print("  ");
 
-  lcdPosition(1, 13);
-  lcdWriteNumber((int) temperatureWhole);
-  lcdWriteString(".");
-  if (temperatureFraction < 10) lcdWriteString("0");
-  lcdWriteNumber((int) temperatureFraction);
-  lcdWriteString(" C  ");
+  lcd.setCursor(13, 1);
+  lcd.print((int) temperatureWhole);
+  lcd.print(".");
+  if (temperatureFraction < 10) lcd.print("0");
+  lcd.print((int) temperatureFraction);
+  lcd.print(" C  ");
 
-  lcdPosition(2, 0);
-  lcdWriteString("Lux: ");
-  lcdWriteNumber((int) lightValue);
-  lcdWriteString("  ");
+  lcd.setCursor(0, 2);
+  lcd.print("Lux: ");
+  lcd.print((int) lightValue);
+  lcd.print("  ");
 
   // Show which color the LED is slowly changing to.
   char outputValChar[3];
-  lcdPosition(3, 0);
-  lcdWriteString("RGB1 R:");
+  lcd.setCursor(0, 3);
+  lcd.print(F("RGB#"));
   sprintf(outputValChar, "%02X", (int) RGB1b[2]);
-  lcdWriteString(outputValChar);
-  lcdWriteString(" G:");
+  lcd.print(outputValChar);
   sprintf(outputValChar, "%02X", (int) RGB1b[1]);
-  lcdWriteString(outputValChar);
-  lcdWriteString(" B:");
+  lcd.print(outputValChar);
   sprintf(outputValChar, "%02X", (int) RGB1b[0]);
-  lcdWriteString(outputValChar);
+  lcd.print(outputValChar);
 }
 
+#if 0
 void lcdWrite(
   byte value,
   byte dataFlag) {
@@ -234,5 +171,6 @@ void lcdWriteNumber(int nr) {
   int digits = estimateDigits(value);
   lcdWriteNumber(value, digits);
 }
+#endif
 
 /* ------------------------------------------------------------------------- */
