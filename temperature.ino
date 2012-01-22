@@ -19,8 +19,8 @@ void temperatureHandler(void) {
 
   temperatureValue = ((float) analogRead(PIN_ANALOG_TEMPERATURE) / 4) - 20.5;
 
-//Serial.print("Temperature: ");
-  Serial.println(temperatureValue);
+// Serial.print("Temperature: ");
+// Serial.println(temperatureValue);
 
   temperatureWhole = temperatureValue;
   temperatureFraction = (temperatureValue - temperatureWhole) * 100;

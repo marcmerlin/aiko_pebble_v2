@@ -29,17 +29,24 @@
  * should likely count 2 clicks as one rotation step.
  */
 
-#define ENCODER_A_MASK (1<<PIN_ROTARY_A)
-#define ENCODER_B_MASK (1<<PIN_ROTARY_B)
-#define ENCODERS_MASK (ENCODER_B_MASK | ENCODER_A_MASK)
+#define PORTD_ENCODER_A_MASK (1<<PIN_ROTARY_A)
+#define PORTD_ENCODER_B_MASK (1<<PIN_ROTARY_B)
+#define PORTD_ENCODERS_MASK (PORTD_ENCODER_B_MASK | PORTD_ENCODER_A_MASK)
 
-// FIXME: create a new interrupt for PIN_ROTARY_PUSH
+// D8 is bit 0 on port B.
+#define PORTB_BUTTON_MASK (1<< (PIN_ROTARY_PUSH-8))
 
-uint8_t inputStates = 0x00;  // the states read immediately at interrupt
-uint8_t changeFlags = 0x00;  // XOR of the old and new states
-uint8_t oldInputStates = 0x00;  // the states at last interrupt
-boolean encoderStateChange = false;  // to tell the loop something happened
+byte PINB_input = 0x00;  // states read immediately at interrupt
+byte PINB_old_states = 0x00;  // the states at last interrupt
+byte PINB_bits_changed = 0x00;  // XOR of the old and new states
+boolean PortBInterruptFired = false;
 
+byte PIND_input = 0x00;  // states read immediately at interrupt
+byte PIND_old_states = 0x00;  // the states at last interrupt
+byte PIND_bits_changed = 0x00;  // XOR of the old and new states
+boolean PortDInterruptFired = false;
+
+int8_t  rotary_button_change = 0;   // 0 if read, or -1/+1 if pending processing
 int16_t encoderErrors = 0;  // when 2 pins change at once (undefined direction)
 boolean button_status, old_button_status = 1;
 
@@ -55,19 +62,38 @@ boolean rotaryEncoderInitialized = false;
  * A0-A5 (D14-D19) = PCINT 8-13  = PCIR1 = Port C = PCIE1 = pcmsk1
  */
 
-// Interrupt Service Routine for PORTD. D6 and D7 are PCINT22 and PCINT23
-ISR(PCINT2_vect) {
-    inputStates = PIND;  // This macro/function returns pin states for port D
-    changeFlags = inputStates ^ oldInputStates; 
+#define BUTTON_PUSHED 0
+#define BUTTON_NOTPUSHED 1
+
+// Interrupt Service Routine for PORTB. D8 is PCINT0
+ISR(PCINT0_vect) {
+    PINB_input = PINB;  // This macro/function returns pin states for port D
+    PINB_bits_changed = PINB_input ^ PINB_old_states; 
 
     // Make sure that a change received was actually on the pins we care about
     // and not other ones on that bank:
-    if ((changeFlags & ENCODERS_MASK) != 0x00) {
-	encoderStateChange = true;  //the encoders did something
+    if (PINB_bits_changed & PORTB_BUTTON_MASK) 
+    {
+	button_status = PINB_input & PORTB_BUTTON_MASK;
+    }
+    PINB_old_states = PINB_input;
+    PortBInterruptFired = true;
+}
+
+// Interrupt Service Routine for PORTD. D6 and D7 are PCINT22 and PCINT23
+ISR(PCINT2_vect) {
+    PIND_input = PIND;  // This macro/function returns pin states for port D
+    PIND_bits_changed = PIND_input ^ PIND_old_states; 
+
+    // Make sure that a change received was actually on the pins we care about
+    // and not other ones on that bank:
+    if (PIND_bits_changed & PORTD_ENCODERS_MASK) 
+    {
+	PortDInterruptFired = true;  //the encoders did something
 
 	// Did both pins change at once? If so, that's an error condition: 
 	// This is a small error if the interrupt is fast.
-	if ((changeFlags & ENCODERS_MASK) == ENCODERS_MASK) {  
+	if ((PIND_bits_changed & PORTD_ENCODERS_MASK) == PORTD_ENCODERS_MASK) {  
 	    encoderErrors++;
 	} 
         // The next condition simply resolves a direction. 
@@ -79,15 +105,16 @@ ISR(PCINT2_vect) {
           decode quadrature down to the quadrant level.  I stripped it out of
           another project where speed was an issue, so I apologise for the
           difficult to read line. */
-	  if (( ( (inputStates >> 1) ^ inputStates ^ changeFlags) & 
-		ENCODER_A_MASK) != 0x00) {
+	  if (( ( (PIND_input >> 1) ^ PIND_input ^ PIND_bits_changed) & 
+		PORTD_ENCODER_A_MASK) != 0x00) {
 	      rotary_button_change = -1;
 	  } else {
 	      rotary_button_change = 1;
 	  }
 	}
     }
-    oldInputStates = inputStates;
+    PIND_old_states = PIND_input;
+    PortDInterruptFired = true;
 }
 
 void rotaryEncoderInitialize(void) {
@@ -102,39 +129,41 @@ void rotaryEncoderInitialize(void) {
     
     // The values below are correct for pebble v2
     // see "/usr/lib/avr/include/avr/iom328p.h" for aliases for other pins etc.
-    PCICR  |= (1 << PCIE2);   // enable port-change int on port-change-byte 2
+    PCICR  |= (1 << PCIE0);   // enable port-change int on PORTB
+    PCICR  |= (1 << PCIE2);   // enable port-change int on PORTD
 
     // Pin change mask registers decide which pins are enabled as triggers
+    PCMSK0 |= (1 << PCINT0);  // port change interrupt 0  for pin 8
     PCMSK2 |= (1 << PCINT22); // port change interrupt 22 for pin 6
     PCMSK2 |= (1 << PCINT23); // port change interrupt 23 for pin 7
 
     rotaryEncoderInitialized = true;
 }
 
-#define BUTTON_PUSHED 0
-#define BUTTON_NOTPUSHED 1
-
 void rotaryEncoderHandler(void) {
     static char clickchar = char(0);
     if (! rotaryEncoderInitialized) rotaryEncoderInitialize();
 
-    // FIXME: this needs to be replaced by a proper interrupt, if someone 
-    // clicks less time than this handler is called at, the click will be missed
-    button_status = digitalRead(PIN_ROTARY_PUSH);
-    if (button_status == BUTTON_NOTPUSHED && old_button_status == BUTTON_PUSHED)
+    if (button_status != old_button_status)
     {
-	button_clicked = true;
-	lcd.setCursor(1, 0);
-	lcd.print(clickchar);
-	clickchar = (clickchar + 1) % 5;
+	if (button_status == BUTTON_NOTPUSHED && old_button_status == BUTTON_PUSHED)
+	{
+	    button_clicked = true;
+	    // Little hack to cycle the <heart> character.
+	    // lcd.setCursor(1, 0);
+	    // lcd.print(clickchar);
+	    // clickchar = (clickchar + 1) % 5;
+	}
+	old_button_status = button_status;
     }
-    old_button_status = button_status;
 
-    if (encoderStateChange == true)
+    if (PortDInterruptFired == true)
     {
-	encoderStateChange = false;    
+	PortDInterruptFired = false;    
 
-	Serial.print("Encoder Position: ");
+	Serial.print("Encoder Input: ");
+	// There is a race condition here. This value is consumed by lcd.ino
+	// and reset to '0'. This could happen quicker than the print below.
 	Serial.println(rotary_button_change);
 	Serial.print("Encoder Errors: ");
 	Serial.println(encoderErrors);

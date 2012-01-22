@@ -40,8 +40,6 @@ const int PIN_ROTARY_PUSH        =  8;  // In:  Rotary encoder push down switch
 #define ROTARY_ENCODER_PORT PIND
 #define ROTARY_ENCODER_MASK 0xc0
 
-extern int16_t rotaryEncoderValue;
-
 // RGB LED PWM outputs
 const int PIN_LED_RED            =  9;  // Out: Red LED (PWM)
 const int PIN_LED_GREEN          = 10;  // Out: Red LED (PWM)
@@ -75,10 +73,11 @@ extern float RGB1b[3];
 // How many times we get into the handler before we actually run its content
 // (allows delaying the color change loop from external input like the 
 // the rotary switch).
-uint8_t RGB1_delay_factor = 10;
+extern uint8_t RGB1_delay_factor;
 
-int8_t  rotary_button_change = 0;   // 0 if read, or -1/+1 if pending processing
+extern int8_t rotary_button_change;   // 0 if read, or -1/+1 if pending processing
 extern uint8_t lcd_backlight = DEFAULT_LCD_BACKLIGHT;
+extern uint8_t rgb1_darker_colors_shift;
 
 // Used by lcd to decide whether we have the popup menu or not.
 boolean in_menu = false;
