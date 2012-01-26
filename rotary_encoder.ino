@@ -3,12 +3,15 @@
  * Please do not remove the following notices.
  * License: GPLv3. http://geekscape.org/static/arduino_license.html
  * ----------------------------------------------------------------------------
- * See http://www.circuitsathome.com/mcu/reading-rotary-encoder-on-arduino
- *
+ * 
  * A (relatively) simple sketch for using PCint for interrupt on encoder
  * rotation on the pebble v2.
- * Brett Downing 2012
+ * Inspired by code from Brett Downing 2012, and mostly written by
+ * Marc MERLIN <marc_soft@merlins.org> for pebble v2 and aiko.
+ * I changed clockwise to be +1, not -1
  * 
+ * Notes from Brett Downing:
+ * ----------------------------------------------------------------------------
  * One thing you'll notice about the pebble board is the enormous number of
  * encoder errrors it generates even though position measurement is rock solid.
  * (it returns to zero at the same angle) The reason for this is contact bounce.
@@ -18,15 +21,16 @@
  * The contact bounce is a very fast signal, much faster than the encoder
  * can actually rotate by two quadrants.  With the interrupt running as
  * fast as it does, the gray code signal is almost entirely bounce immune.
- * 
  * ----------------------------------------------------------------------------
- * Adapted by Marc MERLIN <marc_soft@merlins.org> for pebble v2 and aiko.
  * 
- * - clockwise is +1, not -1
- * - merged code in one file, cleaned up.
+ * Useful pages to read. the poll based method::
+ * http://www.circuitsathome.com/mcu/reading-rotary-encoder-on-arduino
+ * and the better ISR based method that this code is based on:
+ * http://www.circuitsathome.com/mcu/rotary-encoder-interrupt-service-routine-for-avr-micros
+ * (you'll want to read the comments of the first page to understand the encoder
+ * lookup table).
  * 
- * Note that each rotation is really actually 2 clicks, so code using this
- * should likely count 2 clicks as one rotation step.
+ * 
  */
 
 #define PORTD_ENCODER_A_MASK (1<<PIN_ROTARY_A)
@@ -41,15 +45,19 @@ byte PINB_old_states = 0x00;  // the states at last interrupt
 byte PINB_bits_changed = 0x00;  // XOR of the old and new states
 boolean PortBInterruptFired = false;
 
-byte PIND_input = 0x00;  // states read immediately at interrupt
-byte PIND_old_states = 0x00;  // the states at last interrupt
-byte PIND_bits_changed = 0x00;  // XOR of the old and new states
+uint8_t PIND_input = 0x00;  // states read immediately at interrupt
+uint8_t PIND_old_states = 0x00;  // the states at last interrupt
+uint8_t PIND_bits_changed = 0x00;  // XOR of the old and new states
+uint8_t PIND_AB_states = 0;  // lookup table index
+uint8_t PIND_AB_bits = 0;    // shifted rotary bits read and stored in 1, 0
 boolean PortDInterruptFired = false;
 
+// This is reset to 0 in the ISR each time it is entered.
+int8_t  rotary_button_value  = 0;   // 0 if error or -1/+1 if pending processing
+// This value is only reset when it is read or replaced by another non null one.
 int8_t  rotary_button_change = 0;   // 0 if read, or -1/+1 if pending processing
-int16_t encoderErrors = 0;  // when 2 pins change at once (undefined direction)
+int16_t rotary_error = 0;  // when 2 pins change at once (undefined direction)
 boolean button_status, old_button_status = 1;
-
 
 boolean rotaryEncoderInitialized = false;
 
@@ -81,39 +89,34 @@ ISR(PCINT0_vect) {
 }
 
 // Interrupt Service Routine for PORTD. D6 and D7 are PCINT22 and PCINT23
-ISR(PCINT2_vect) {
-    PIND_input = PIND;  // This macro/function returns pin states for port D
-    PIND_bits_changed = PIND_input ^ PIND_old_states; 
+// Expects encoder with four state changes between detents and both pins
+// open on detent.
+ISR(PCINT2_vect)
+{
+    // Make variables static to save time by not recreating them at each
+    // interrupt call.
+    static const int8_t enc_states [] PROGMEM = 
+				    {0,-1,1,0,1,0,0,-1,-1,0,0,1,0,1,-1,0};
 
-    // Make sure that a change received was actually on the pins we care about
-    // and not other ones on that bank:
-    if (PIND_bits_changed & PORTD_ENCODERS_MASK) 
+    PIND_AB_states <<= 2; // move previous 2 bits from position 1,0 to 3,2 
+    // Merge in new bits 7, 6 to positions 1, 0
+    PIND_AB_bits = ( (PIND & PORTD_ENCODERS_MASK) >> PIN_ROTARY_A ); 
+    PIND_AB_states |= PIND_AB_bits; 
+    // We now have a 4 bit value with the 2 old positions and 2 new positions.
+    // This can used to look in the enc_states lookup table 
+
+    // pgm_read_byte is used to read from the array in flash.
+    // I've inverted the table because I prefer -1 for CCW and 1 for CW.
+    rotary_button_value = -
+		    pgm_read_byte( &(enc_states[( PIND_AB_states & 0x0f )]) );
+    if (rotary_button_value) 
     {
-	PortDInterruptFired = true;  //the encoders did something
-
-	// Did both pins change at once? If so, that's an error condition: 
-	// This is a small error if the interrupt is fast.
-	if ((PIND_bits_changed & PORTD_ENCODERS_MASK) == PORTD_ENCODERS_MASK) {  
-	    encoderErrors++;
-	} 
-        // The next condition simply resolves a direction. 
-	// The encoder DID move sensibly, but which way?
-	else 
-	{
-          /* This code code relies on the two pins being on the same port.
-          I'm pretty sure it's the minimum number of cycles required to fully
-          decode quadrature down to the quadrant level.  I stripped it out of
-          another project where speed was an issue, so I apologise for the
-          difficult to read line. */
-	  if (( ( (PIND_input >> 1) ^ PIND_input ^ PIND_bits_changed) & 
-		PORTD_ENCODER_A_MASK) != 0x00) {
-	      rotary_button_change = -1;
-	  } else {
-	      rotary_button_change = 1;
-	  }
-	}
-    }
-    PIND_old_states = PIND_input;
+	rotary_button_change = rotary_button_value;
+    }   
+    else
+    {
+	rotary_error++;
+    }   
     PortDInterruptFired = true;
 }
 
@@ -162,11 +165,9 @@ void rotaryEncoderHandler(void) {
 	PortDInterruptFired = false;    
 
 	Serial.print("Encoder Input: ");
-	// There is a race condition here. This value is consumed by lcd.ino
-	// and reset to '0'. This could happen quicker than the print below.
 	Serial.println(rotary_button_change);
 	Serial.print("Encoder Errors: ");
-	Serial.println(encoderErrors);
+	Serial.println(rotary_error);
     }
 }
 
